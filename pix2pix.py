@@ -445,7 +445,7 @@ def create_model(inputs, targets):
         out_channels = int(targets.get_shape()[-1])
         outputs = create_generator(inputs, out_channels)
 
-    # create two copies of discriminator, one for real pairs and one for fake pairs
+    # create 4 copies of discriminator, two for real pairs and two for fake pairs
     # they share the same underlying variables
     with tf.name_scope("real_discriminator"):
         with tf.variable_scope("discriminator1"):
@@ -462,6 +462,7 @@ def create_model(inputs, targets):
             predict_fake2 = create_discriminator(inputs,outputs)
 
     with tf.name_scope("discriminator_loss"):
+        #first losses of discriminator 1 and 2 are calculated then averaged
         # minimizing -tf.log will try to get inputs to 1
         # predict_real => 1
         # predict_fake => 0
@@ -470,6 +471,7 @@ def create_model(inputs, targets):
         discrim_loss = tf.reduce_mean(discrim_loss1+discrim_loss2)
 
     with tf.name_scope("generator_loss"):
+        #generator loss is calculated with Discriminator 1 and 2
         # predict_fake => 1
         # abs(targets - outputs) => 0
         gen_loss_GAN1 = tf.reduce_mean(-tf.log(predict_fake + EPS))
@@ -479,6 +481,7 @@ def create_model(inputs, targets):
         gen_loss = gen_loss_GAN * a.gan_weight + gen_loss_L1 * a.l1_weight
 
     with tf.name_scope("discriminator_train"):
+        #both discriminator share same type of optimizer currently
         discrim_tvars = [var for var in tf.trainable_variables() if var.name.startswith("discriminator1")]
         discrim_optim = tf.train.AdamOptimizer(a.lr, a.beta1)
         discrim_grads_and_vars = discrim_optim.compute_gradients(discrim_loss1, var_list=discrim_tvars)
@@ -496,6 +499,7 @@ def create_model(inputs, targets):
             gen_train = gen_optim.apply_gradients(gen_grads_and_vars)
 
     ema = tf.train.ExponentialMovingAverage(decay=0.99)
+    # I think that for a serial case I may need to update in separate for loss 1 and 2?
     update_losses = ema.apply([discrim_loss, gen_loss_GAN, gen_loss_L1])
 
     global_step = tf.contrib.framework.get_or_create_global_step()
